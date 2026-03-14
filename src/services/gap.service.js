@@ -1,48 +1,98 @@
 const sql = require("../config/db");
 
+const MIN_GAP_MINUTES = 1;
+
 async function findLargestGap(startDate, endDate) {
 
+  if (!startDate || !endDate) {
+    return {
+      largestGap: null,
+      message: "Both startDate and endDate are required."
+    };
+  }
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (isNaN(start) || isNaN(end) || end <= start) {
+    return {
+      largestGap: null,
+      message: "Invalid date range."
+    };
+  }
+
   const events = await sql`
-    SELECT *
+    SELECT event_id, event_name, start_date, end_date
     FROM historical_events
-    WHERE start_date >= ${startDate}
-    AND end_date <= ${endDate}
-    ORDER BY start_date
+    WHERE start_date < ${end}
+      AND end_date > ${start}
+    ORDER BY start_date, end_date
   `;
 
   if (events.length < 2) {
     return {
       largestGap: null,
-      message: "Too few events"
+      message: "No significant temporal gaps found within the specified range, or too few events."
     };
   }
 
+  // Track the furthest end_date seen so far (coverage watermark)
+  // to correctly handle overlapping events
+  let watermark = new Date(events[0].end_date);
   let maxGap = 0;
   let gapResult = null;
+  let precedingIdx = 0;
 
-  for (let i = 0; i < events.length - 1; i++) {
+  for (let i = 1; i < events.length; i++) {
 
-    const end = new Date(events[i].end_date);
-    const nextStart = new Date(events[i + 1].start_date);
-
-    const gap = nextStart - end;
+    const nextStart = new Date(events[i].start_date);
+    const gap = nextStart - watermark;
 
     if (gap > maxGap) {
-
       maxGap = gap;
+      precedingIdx = i - 1;
+
+      // find the actual preceding event (the one whose end_date == watermark)
+      for (let j = i - 1; j >= 0; j--) {
+        if (new Date(events[j].end_date).getTime() === watermark.getTime()) {
+          precedingIdx = j;
+          break;
+        }
+      }
 
       gapResult = {
-        startOfGap: end,
+        startOfGap: watermark,
         endOfGap: nextStart,
-        durationMinutes: gap / 60000
+        durationMinutes: Math.floor(gap / 60000),
+        precedingEvent: {
+          event_id: events[precedingIdx].event_id,
+          event_name: events[precedingIdx].event_name,
+          end_date: events[precedingIdx].end_date
+        },
+        succeedingEvent: {
+          event_id: events[i].event_id,
+          event_name: events[i].event_name,
+          start_date: events[i].start_date
+        }
       };
-
     }
+    
+    const thisEnd = new Date(events[i].end_date);
+    if (thisEnd > watermark) {
+      watermark = thisEnd;
+    }
+  }
+
+  if (!gapResult || gapResult.durationMinutes < MIN_GAP_MINUTES) {
+    return {
+      largestGap: null,
+      message: "No significant temporal gaps found within the specified range, or too few events."
+    };
   }
 
   return {
     largestGap: gapResult,
-    message: "Largest gap found"
+    message: "Largest temporal gap identified."
   };
 }
 
