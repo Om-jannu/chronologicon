@@ -4,7 +4,9 @@ const { findInfluencePath } = require("../services/influence.service");
 
 async function getOverlapping(req, res) {
 
-  const result = await getOverlappingEvents();
+  const { startDate, endDate } = req.query;
+
+  const result = await getOverlappingEvents(startDate, endDate);
 
   res.json(result);
 }
