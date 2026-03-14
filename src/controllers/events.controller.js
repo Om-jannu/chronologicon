@@ -83,13 +83,13 @@ async function getTimeline(req, res) {
 
 async function search(req, res) {
 
-  const events = await searchEvents(req.query);
+  const result = await searchEvents(req.query);
 
   res.json({
-    totalEvents: events.length,
-    page: req.query.page || 1,
-    limit: req.query.limit || 10,
-    events
+    totalEvents: result.totalEvents,
+    page: result.page,
+    limit: result.limit,
+    events: result.events
   });
 }
 
