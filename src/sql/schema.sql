@@ -48,3 +48,16 @@ ADD CONSTRAINT fk_parent_event
 FOREIGN KEY (parent_event_id)
 REFERENCES historical_events(event_id)
 DEFERRABLE INITIALLY DEFERRED;
+
+CREATE TABLE IF NOT EXISTS ingestion_jobs (
+
+  job_id TEXT PRIMARY KEY,
+
+  status TEXT NOT NULL DEFAULT 'PROCESSING',
+
+  metadata JSONB,
+
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);

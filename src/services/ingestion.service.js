@@ -1,4 +1,5 @@
 const fs = require("fs");
+const path = require("path");
 const readline = require("readline");
 
 const sql = require("../config/db");
@@ -6,7 +7,32 @@ const { validateEvent } = require("../utils/validator");
 
 const BATCH_SIZE = 10;
 
-async function ingestFile(filePath, job) {
+async function ingestFile(filePath, job, jobId) {
+
+  const stat = fs.statSync(filePath);
+  const fileName = path.basename(filePath);
+
+  job.fileMetadata = {
+    fileName,
+    filePath,
+    fileSize: stat.size,
+    totalLines: 0
+  };
+
+  job.startTime = new Date().toISOString();
+
+  // persist initial job row
+  await sql`
+    INSERT INTO ingestion_jobs (job_id, status, metadata)
+    VALUES (
+      ${jobId},
+      'PROCESSING',
+      ${sql.json({
+        startTime: job.startTime,
+        fileMetadata: job.fileMetadata
+      })}
+    )
+  `;
 
   const stream = fs.createReadStream(filePath);
 
@@ -16,12 +42,14 @@ async function ingestFile(filePath, job) {
   });
 
   const validEvents = [];
-  let isFirstLine = true;
+  let lineNumber = 0;
 
   for await (const line of rl) {
 
-    if (isFirstLine) {
-      isFirstLine = false;
+    lineNumber++;
+
+    // skip header
+    if (lineNumber === 1) {
       continue;
     }
 
@@ -36,6 +64,7 @@ async function ingestFile(filePath, job) {
         job.errorLines++;
 
         job.errors.push({
+          lineNumber,
           line,
           error: result.error
         });
@@ -72,7 +101,10 @@ async function ingestFile(filePath, job) {
 
         metadata: {
           researchValue,
-          description
+          description,
+          sourceFile: fileName,
+          fileSize: stat.size,
+          lineNumber
         }
       });
 
@@ -81,6 +113,7 @@ async function ingestFile(filePath, job) {
       job.errorLines++;
 
       job.errors.push({
+        lineNumber,
         line,
         error: err.message
       });
@@ -88,6 +121,26 @@ async function ingestFile(filePath, job) {
     }
 
   }
+
+  job.fileMetadata.totalLines = lineNumber - 1; // exclude header
+  job.totalLines = lineNumber - 1;
+
+  // persist state after file parsing (errors/totalLines available before insert phase)
+  await sql`
+    UPDATE ingestion_jobs
+    SET
+      metadata = ${sql.json({
+        startTime: job.startTime,
+        endTime: null,
+        processedLines: job.processedLines,
+        errorLines: job.errorLines,
+        totalLines: job.totalLines,
+        errors: job.errors,
+        fileMetadata: job.fileMetadata
+      })},
+      updated_at = NOW()
+    WHERE job_id = ${jobId}
+  `;
 
   const sorted = topologicalSort(validEvents);
 
@@ -105,7 +158,26 @@ async function ingestFile(filePath, job) {
 
   });
 
+  job.endTime = new Date().toISOString();
   job.status = "COMPLETED";
+
+  // persist final job state
+  await sql`
+    UPDATE ingestion_jobs
+    SET
+      status = ${job.status},
+      metadata = ${sql.json({
+        startTime: job.startTime,
+        endTime: job.endTime,
+        processedLines: job.processedLines,
+        errorLines: job.errorLines,
+        totalLines: job.totalLines,
+        errors: job.errors,
+        fileMetadata: job.fileMetadata
+      })},
+      updated_at = NOW()
+    WHERE job_id = ${jobId}
+  `;
 
 }
 
