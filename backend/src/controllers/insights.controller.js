@@ -24,6 +24,12 @@ async function getInfluence(req, res) {
 
   const { sourceEventId, targetEventId } = req.query;
 
+  if (!sourceEventId || !targetEventId) {
+    return res.status(400).json({
+      error: "Both sourceEventId and targetEventId query parameters are required."
+    });
+  }
+
   const result = await findInfluencePath(
     sourceEventId,
     targetEventId
