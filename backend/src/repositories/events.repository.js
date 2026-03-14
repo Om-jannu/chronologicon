@@ -129,10 +129,6 @@ async function getEventBasic(eventId) {
   return event;
 }
 
-function buildWhereFragment(fragment) {
-  return sql`WHERE ${fragment}`;
-}
-
 function buildCondition(column, op, value) {
   if (op === "ilike") return sql`event_name ILIKE ${value}`;
   if (op === "gt") return sql`start_date > ${value}`;
