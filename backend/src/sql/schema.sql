@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS historical_events (
   CONSTRAINT fk_parent_event
     FOREIGN KEY(parent_event_id)
     REFERENCES historical_events(event_id)
-    ON DELETE SET NULL
+    DEFERRABLE INITIALLY DEFERRED
 
 );
 
@@ -39,15 +39,6 @@ ON historical_events(end_date);
 CREATE INDEX IF NOT EXISTS idx_metadata
 ON historical_events
 USING GIN(metadata);
-
-ALTER TABLE historical_events
-DROP CONSTRAINT fk_parent_event;
-
-ALTER TABLE historical_events
-ADD CONSTRAINT fk_parent_event
-FOREIGN KEY (parent_event_id)
-REFERENCES historical_events(event_id)
-DEFERRABLE INITIALLY DEFERRED;
 
 CREATE TABLE IF NOT EXISTS ingestion_jobs (
 

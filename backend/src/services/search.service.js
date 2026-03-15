@@ -21,22 +21,27 @@ async function searchEvents(filters) {
   const conditions = [];
 
   if (name) conditions.push(eventsRepo.buildCondition("event_name", "ilike", "%" + name + "%"));
+  
   if (start_date_after) {
     const d = new Date(start_date_after);
     if (!isNaN(d)) conditions.push(eventsRepo.buildCondition("start_date", "gt", d));
   }
+
   if (end_date_before) {
     const d = new Date(end_date_before);
     if (!isNaN(d)) conditions.push(eventsRepo.buildCondition("end_date", "lt", d));
   }
+
   if (min_research_value != null) {
     const v = parseInt(min_research_value, 10);
     if (!isNaN(v)) conditions.push(eventsRepo.buildCondition("research_value", "gte_rv", v));
   }
+
   if (max_research_value != null) {
     const v = parseInt(max_research_value, 10);
     if (!isNaN(v)) conditions.push(eventsRepo.buildCondition("research_value", "lte_rv", v));
   }
+  
   if (parent_event_id) conditions.push(eventsRepo.buildCondition("parent_event_id", "eq_parent", parent_event_id));
 
   const whereClause = eventsRepo.andConditions(conditions);
