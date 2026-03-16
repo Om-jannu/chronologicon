@@ -82,18 +82,13 @@ async function findOverlappingPairs(dateFilter) {
       e1.event_id AS event1_id, e1.event_name AS event1_name,
       e1.start_date AS event1_start, e1.end_date AS event1_end,
       e2.event_id AS event2_id, e2.event_name AS event2_name,
-      e2.start_date AS event2_start, e2.end_date AS event2_end,
-      EXTRACT(EPOCH FROM (
-        LEAST(e1.end_date, e2.end_date) -
-        GREATEST(e1.start_date, e2.start_date)
-      ))::int / 60 AS overlap_duration_minutes
+      e2.start_date AS event2_start, e2.end_date AS event2_end
     FROM historical_events e1
     JOIN historical_events e2
       ON e1.event_id < e2.event_id
       AND e1.start_date < e2.end_date
       AND e1.end_date > e2.start_date
     ${dateFilter ? sql`WHERE ${dateFilter}` : sql``}
-    ORDER BY overlap_duration_minutes DESC
   `;
 }
 
